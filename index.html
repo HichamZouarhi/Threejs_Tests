@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title>Treehouse Logo in three.js</title>
+  <meta charset="utf-8">
+</head>
+<body style="margin: 0;">
+
+  <script src="js/three.js"></script>
+  <script src="js/OrbitControls.js"></script>
+  <script src="js/renderers/Projector.js"></script>
+  <script src="js/renderers/CanvasRenderer.js"></script>
+
+  <script>
+
+    // Set up the scene, camera, and renderer as global variables.
+    var scene, camera, renderer;
+    var theThing = new THREE.Object3D();//julie create the Thing
+    var raycaster;
+    //var particleMaterial;
+    var mouse, firstPoint, secondPoint, line;
+
+    init();
+    animate();
+
+    // Sets up the scene.
+    function init() {
+
+      // Create the scene and set the scene size.
+      scene = new THREE.Scene();
+      var WIDTH = window.innerWidth,
+          HEIGHT = window.innerHeight;
+
+      // Create a renderer and add it to the DOM.
+      renderer = new THREE.WebGLRenderer({antialias:true});
+      renderer.setSize(WIDTH, HEIGHT);
+      document.body.appendChild(renderer.domElement);
+      raycaster = new THREE.Raycaster();
+      mouse = new THREE.Vector2();
+
+      // Create a camera, zoom it out from the model a bit, and add it to the scene.
+      camera = new THREE.PerspectiveCamera(45, WIDTH / HEIGHT, 0.1, 20000);
+      camera.position.set(0,6,0);
+      scene.add(camera);
+
+      // Create an event listener that resizes the renderer with the browser window.
+      window.addEventListener('resize', function() {
+        var WIDTH = window.innerWidth,
+            HEIGHT = window.innerHeight;
+        renderer.setSize(WIDTH, HEIGHT);
+        camera.aspect = WIDTH / HEIGHT;
+        camera.updateProjectionMatrix();
+      });
+
+      // Set the background color of the scene.
+      renderer.setClearColor(0x333F47, 1);
+
+      // Create a light, set its position, and add it to the scene.
+      var light1 = new THREE.PointLight(0xffffff);
+      light1.position.set(-100,200,100);
+      scene.add(light1);
+      
+
+      // Load in the mesh and add it to the scene.
+      var loader = new THREE.JSONLoader();
+      loader.load( "models/treehouse_logo.js", function(geometry){
+        var material = new THREE.MeshLambertMaterial({color: 0x55B663});
+        mesh = new THREE.Mesh(geometry, material);
+        theThing.add(mesh);
+        scene.add(theThing);
+      });
+
+      /*var PI2 = Math.PI * 2;
+      particleMaterial = new THREE.SpriteCanvasMaterial( {
+
+          color: 0x000000,
+          program: function ( context ) {
+
+            context.beginPath();
+            context.arc( 0, 0, 0.5, 0, PI2, true );
+            context.fill();
+
+          }
+
+        } );*/
+      
+      axes = buildAxes( 1000 );
+      scene.add(axes);
+
+      // Add OrbitControls so that we can pan around with the mouse.
+      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      //controls.noZoom=false;
+      document.addEventListener( 'mousedown', onDocumentMouseDown, false );
+      document.addEventListener( 'touchstart', onDocumentTouchStart, false );
+    
+    }
+
+    //building the axes by their length : positive values are continuous, and negative ones are dashed
+    function buildAxes( length ) {
+      var axes = new THREE.Object3D();
+
+      axes.add( buildAxis( new THREE.Vector3( 0, 0, 0 ), new THREE.Vector3( length, 0, 0 ), 0xFF0000, false ) ); // +X
+      axes.add( buildAxis( new THREE.Vector3( 0, 0, 0 ), new THREE.Vector3( -length, 0, 0 ), 0xFF0000, true) ); // -X
+      axes.add( buildAxis( new THREE.Vector3( 0, 0, 0 ), new THREE.Vector3( 0, length, 0 ), 0x00FF00, false ) ); // +Y
+      axes.add( buildAxis( new THREE.Vector3( 0, 0, 0 ), new THREE.Vector3( 0, -length, 0 ), 0x00FF00, true ) ); // -Y
+      axes.add( buildAxis( new THREE.Vector3( 0, 0, 0 ), new THREE.Vector3( 0, 0, length ), 0x0000FF, false ) ); // +Z
+      axes.add( buildAxis( new THREE.Vector3( 0, 0, 0 ), new THREE.Vector3( 0, 0, -length ), 0x0000FF, true ) ); // -Z
+
+      return axes;
+
+    }
+
+    //building a single axis given it's source + destination + color and boolean value dashed
+
+    function buildAxis( src, dst, colorHex, dashed ) {
+        var geom = new THREE.Geometry(),
+            mat;
+
+        if(dashed) {
+                mat = new THREE.LineDashedMaterial({ linewidth: 3, color: colorHex, dashSize: 1, gapSize: 1 });
+        } else {
+                mat = new THREE.LineBasicMaterial({ linewidth: 3, color: colorHex });
+        }
+
+        geom.vertices.push( src.clone() );
+        geom.vertices.push( dst.clone() );
+        geom.computeLineDistances(); // This one is SUPER important, otherwise dashed lines will appear as simple plain lines
+
+        var axis = new THREE.Line( geom, mat, THREE.LinePieces );
+
+        return axis;
+
+    }
+
+    function onDocumentTouchStart( event ) {
+
+        event.preventDefault();
+
+        event.clientX = event.touches[0].clientX;
+        event.clientY = event.touches[0].clientY;
+        onDocumentMouseDown( event );
+
+      }
+
+      function onDocumentMouseDown( event ) {
+
+        event.preventDefault();
+        //console.log(event.clientX+" , "+event.clientY);
+        mouse.x = ( event.clientX / renderer.domElement.clientWidth ) * 2 - 1;
+        mouse.y = - ( event.clientY / renderer.domElement.clientHeight ) * 2 + 1;
+        //console.log(mouse.x+" , "+mouse.y);
+        raycaster.setFromCamera( mouse, camera );
+
+        var intersects = raycaster.intersectObject( theThing, true );
+        //console.log(intersects.length);
+
+        if ( intersects.length > 0 ) {
+          if(firstPoint && secondPoint){
+          	firstPoint=null;
+          	secondPoint=null;
+          }
+          if(!firstPoint){
+            firstPoint=intersects[0].point;
+          }
+          else{
+            secondPoint=intersects[0].point;
+          }
+
+          if(firstPoint && secondPoint){
+            console.log("First point : "+firstPoint.x+" , "+firstPoint.y+" , "+firstPoint.z);
+            console.log("Second point : "+secondPoint.x+" , "+secondPoint.y+" , "+secondPoint.z);
+            console.log("length of the line : "+distanceVector(firstPoint,secondPoint));
+            var material = new THREE.LineBasicMaterial({color: 0xffff00});
+            var lineGeometry = new THREE.Geometry();
+            lineGeometry.vertices.push(firstPoint, secondPoint);
+            line = new THREE.Line( lineGeometry, material );
+            //line.lookAt(camera.position);
+            scene.add( line );
+          }
+
+          //console.log(intersects[0].point.x+ " , "+ intersects[0].point.y+" , "+intersects[0].point.z);
+
+          //intersects[ 0 ].object.material.color.setHex( 0xffffff );
+          var geometry = new THREE.CircleGeometry( 0.05 );
+          var material = new THREE.MeshBasicMaterial( { color: 0xffff00 } );
+          var circle = new THREE.Mesh( geometry, material );
+          circle.lookAt( camera.position );
+          circle.position.copy(intersects[ 0 ].point);
+          scene.add( circle );
+          
+          /*var particle = new THREE.Sprite( particleMaterial );
+          particle.position.copy( intersects[ 0 ].point );
+          particle.scale.x = particle.scale.y = 16;
+          scene.add( particle );*/
+
+        }
+
+        /*
+        // Parse all the faces
+        for ( var i in intersects ) {
+
+          intersects[ i ].face.material[ 0 ].color.setHex( Math.random() * 0xffffff | 0x80000000 );
+
+        }
+        */
+      }
+
+
+    // Renders the scene and updates the render as needed.
+    function animate() {
+
+      // Read more about requestAnimationFrame at http://www.paulirish.com/2011/requestanimationframe-for-smart-animating/
+      requestAnimationFrame(animate);
+      
+      // Render the scene.
+      renderer.render(scene, camera);
+      controls.update();
+
+    }
+
+    function distanceVector( v1, v2 ){
+      var dx = v1.x - v2.x;
+      var dy = v1.y - v2.y;
+      var dz = v1.z - v2.z;
+
+      return Math.sqrt( dx * dx + dy * dy + dz * dz );
+    }
+
+  </script>
+
+</body>
+</html>
